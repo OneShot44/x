@@ -1,205 +1,76 @@
--- Chaos FX – Cinematic Destruction Suite (Local+Server ready)
--- Autor: ChatGPT (para testes no seu servidor privado)
--- Uso: Coloque este LocalScript em StarterPlayerScripts
--- Certifique-se de ter um RemoteEvent no ReplicatedStorage chamado "ChaosFXEvent"
+-- ChaosFX_Server.lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
 
---========================
--- CONFIG
---========================
-local CONFIG = {
-    UI = {Title="CHAOS FX", AccentColor=Color3.fromRGB(255,60,60), Draggable=true, Corner=16, ClickSoundId="rbxassetid://12222005"},
-    Sounds = {
-        Explosion="rbxassetid://138186576", Thunder="rbxassetid://130776150",
-        Whoosh="rbxassetid://12222134", Flashbang="rbxassetid://911882310",
-        Volume=0.65
-    },
-    Effects = {
-        MaxExplosions=20, ExplosionRadius=20, LightningBolts=8,
-        MeteorCount=8, MeteorHeight=180, ShakeIntensity=2.8, ShakeTime=1.2,
-        ShockwaveForce=120, FlashbangDuration=2.0,
-        Post={BloomIntensity=1.8, BlurSize=8, ColorShift=Color3.fromRGB(255,220,200)}
-    },
-    Remote = {Enabled=true, CHAOS_REMOTE_NAME="ChaosFXEvent"},
-    Keybinds = {ToggleUI=Enum.KeyCode.End, Chaos=Enum.KeyCode.F5, Shake=Enum.KeyCode.F6,
-                Explosions=Enum.KeyCode.F7, Lightning=Enum.KeyCode.F8, Meteor=Enum.KeyCode.F9, Flashbang=Enum.KeyCode.F10}
-}
-
---========================
--- SERVICES
---========================
-local Players, RunService, ReplicatedStorage, TweenService, SoundService, Debris, Lighting, UIS =
-    game:GetService("Players"), game:GetService("RunService"), game:GetService("ReplicatedStorage"),
-    game:GetService("TweenService"), game:GetService("SoundService"), game:GetService("Debris"),
-    game:GetService("Lighting"), game:GetService("UserInputService")
-
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-
---========================
--- UTILS
---========================
-local function safeWait(t)
-    local s=tick()
-    while tick()-s<(t or 0) do RunService.Heartbeat:Wait() end
-end
-local function createSound(id,parent,vol)
-    local s=Instance.new("Sound")
-    s.SoundId=id; s.Volume=vol or CONFIG.Sounds.Volume; s.PlayOnRemove=false
-    s.Parent=parent or SoundService; return s
-end
-local function playOneShot(id,vol)
-    if not id or id=="rbxassetid://0" then return end
-    local s=createSound(id,SoundService,vol); s:Play(); Debris:AddItem(s,10)
-end
-local function randBetween(a,b) return a+math.random()*(b-a) end
-local function getCharacter() return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait() end
-local function getRoot() local ch=getCharacter() return ch:FindFirstChild("HumanoidRootPart") end
-local function findRemote() if not CONFIG.Remote.Enabled then return nil end; return ReplicatedStorage:FindFirstChild(CONFIG.Remote.CHAOS_REMOTE_NAME) end
-
---========================
--- UI
---========================
-local ScreenGui=Instance.new("ScreenGui"); ScreenGui.Name="ChaosFX_UI"; ScreenGui.ResetOnSpawn=false; ScreenGui.IgnoreGuiInset=true; ScreenGui.Parent=LocalPlayer:WaitForChild("PlayerGui")
-local Frame=Instance.new("Frame"); Frame.Name="Main"; Frame.Size=UDim2.fromOffset(440,380); Frame.Position=UDim2.new(0,20,0.5,-190); Frame.BackgroundColor3=Color3.fromRGB(20,20,20); Frame.BorderSizePixel=0; Frame.Parent=ScreenGui
-Instance.new("UICorner",Frame).CornerRadius=UDim.new(0,CONFIG.UI.Corner)
-local UIStroke=Instance.new("UIStroke",Frame); UIStroke.Thickness=2; UIStroke.Color=CONFIG.UI.AccentColor; UIStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
-
-local Header=Instance.new("Frame"); Header.Size=UDim2.new(1,0,0,56); Header.BackgroundColor3=Color3.fromRGB(25,25,25); Header.Parent=Frame
-Instance.new("UICorner",Header).CornerRadius=UDim.new(0,CONFIG.UI.Corner)
-
-local Title=Instance.new("TextLabel"); Title.Size=UDim2.new(1,-56,1,0); Title.Position=UDim2.new(0,56,0,0); Title.BackgroundTransparency=1
-Title.Text=CONFIG.UI.Title; Title.TextColor3=Color3.new(1,1,1); Title.TextXAlignment=Enum.TextXAlignment.Left; Title.Font=Enum.Font.GothamBold; Title.TextSize=24; Title.Parent=Header
-
-local ToggleBtn=Instance.new("TextButton"); ToggleBtn.Size=UDim2.fromOffset(32,32); ToggleBtn.Position=UDim2.new(1,-40,0.5,-16)
-ToggleBtn.BackgroundColor3=CONFIG.UI.AccentColor; ToggleBtn.Text="-"; ToggleBtn.Font=Enum.Font.GothamBold; ToggleBtn.TextSize=20; ToggleBtn.TextColor3=Color3.new(1,1,1); ToggleBtn.Parent=Header
-Instance.new("UICorner",ToggleBtn).CornerRadius=UDim.new(0,100)
-
-local function mkBtn(text)
-    local b=Instance.new("TextButton"); b.Size=UDim2.fromOffset(200,60); b.BackgroundColor3=Color3.fromRGB(35,35,35)
-    b.Text=text; b.Font=Enum.Font.GothamBold; b.TextSize=18; b.TextColor3=Color3.new(1,1,1); Instance.new("UICorner",b).CornerRadius=UDim.new(0,12)
-    local st=Instance.new("UIStroke",b); st.Thickness=1; st.Color=CONFIG.UI.AccentColor
-    b.Parent=Frame; return b
+-- Cria o RemoteEvent se não existir
+local re = ReplicatedStorage:FindFirstChild("ChaosFXEvent")
+if not re then
+    re = Instance.new("RemoteEvent")
+    re.Name = "ChaosFXEvent"
+    re.Parent = ReplicatedStorage
 end
 
-local btnChaos=mkBtn("TOGGLE CHAOS (F5)")
-local btnShake=mkBtn("CAMERA SHAKE (F6)")
-local btnExpl=mkBtn("EXPLOSIONS (F7)")
-local btnLight=mkBtn("LIGHTNING (F8)")
-local btnMeteor=mkBtn("METEOR (F9)")
-local btnFlash=mkBtn("FLASHBANG (F10)")
-
---========================
--- EFFECTS
---========================
-local Busy=false; local ChaosRunning=false; local Flashing=false
-
-local function cameraShake(intensity,timeSec)
-    intensity=intensity or CONFIG.Effects.ShakeIntensity; timeSec=timeSec or CONFIG.Effects.ShakeTime
-    local cam=workspace.CurrentCamera; local t0=tick(); local conn
-    conn=RunService.RenderStepped:Connect(function()
-        local dt=tick()-t0
-        if dt>timeSec then if conn then conn:Disconnect() end; return end
-        local off=Vector3.new(randBetween(-intensity,intensity),randBetween(-intensity,intensity),randBetween(-intensity,intensity))*0.05
-        cam.CFrame=cam.CFrame*CFrame.new(off)
-    end)
-end
-
-local function spawnExplosion(pos)
-    local e=Instance.new("Explosion"); e.Position=pos; e.BlastRadius=CONFIG.Effects.ExplosionRadius; e.BlastPressure=0; e.Parent=workspace
-    playOneShot(CONFIG.Sounds.Explosion)
-end
-
-local function spamExplosions()
-    local hrp=getRoot(); if not hrp then return end; cameraShake(3,1.2)
-    for i=1,CONFIG.Effects.MaxExplosions do
-        spawnExplosion(hrp.Position+Vector3.new(randBetween(-40,40),randBetween(-5,15),randBetween(-40,40)))
-        safeWait(0.05)
+-- Funções de efeitos globais
+local function broadcastExplosion(pos)
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local char = plr.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local e = Instance.new("Explosion")
+            e.Position = pos
+            e.BlastRadius = 20
+            e.BlastPressure = 0
+            e.Parent = workspace
+        end
     end
 end
 
-local function lightningBolt(origin,target)
-    local a0,a1=Instance.new("Part"),Instance.new("Part")
-    for i,p in pairs({a0,a1}) do p.Anchored=true; p.CanCollide=false; p.Transparency=1; p.Size=Vector3.new(0.2,0.2,0.2); p.Parent=workspace end
-    a0.Position=origin; a1.Position=target
-    local at0,at1=Instance.new("Attachment",a0),Instance.new("Attachment",a1)
-    local beam=Instance.new("Beam"); beam.Attachment0=at0; beam.Attachment1=at1; beam.Width0=2; beam.Width1=0.6
-    beam.Brightness=5; beam.FaceCamera=true; beam.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(1,1)}); beam.Parent=a0
-    playOneShot(CONFIG.Sounds.Thunder); Debris:AddItem(a0,0.35); Debris:AddItem(a1,0.35)
-end
-
-local function castLightning()
-    local hrp=getRoot(); if not hrp then return end; cameraShake(2.5,0.7)
-    for i=1,CONFIG.Effects.LightningBolts do
-        local origin=hrp.Position+Vector3.new(randBetween(-60,60),80+randBetween(0,40),randBetween(-60,60))
-        local target=hrp.Position+Vector3.new(randBetween(-40,40),randBetween(-5,10),randBetween(-40,40))
-        lightningBolt(origin,target)
-        safeWait(0.05)
+local function broadcastLightning(origin, target)
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local a0 = Instance.new("Part", workspace)
+        a0.Anchored = true; a0.CanCollide = false; a0.Transparency = 1; a0.Size = Vector3.new(0.2,0.2,0.2)
+        a0.Position = origin
+        local a1 = Instance.new("Part", workspace)
+        a1.Anchored = true; a1.CanCollide = false; a1.Transparency = 1; a1.Size = Vector3.new(0.2,0.2,0.2)
+        a1.Position = target
+        local beam = Instance.new("Beam")
+        local at0 = Instance.new("Attachment", a0)
+        local at1 = Instance.new("Attachment", a1)
+        beam.Attachment0 = at0; beam.Attachment1 = at1
+        beam.LightEmission = 1; beam.Width0 = 2; beam.Width1 = 0.6
+        beam.Brightness = 5; beam.FaceCamera = true
+        beam.Parent = a0
+        Debris:AddItem(a0, 0.35)
+        Debris:AddItem(a1, 0.35)
     end
 end
 
-local function meteorShower()
-    local hrp=getRoot(); if not hrp then return end
-    for i=1,CONFIG.Effects.MeteorCount do
-        local p=Instance.new("Part"); p.Size=Vector3.new(6,6,6); p.Material=Enum.Material.Neon; p.Color=Color3.fromRGB(255,120,60)
-        p.Anchored=false; p.CanCollide=true; p.Shape=Enum.PartType.Ball; p.Position=hrp.Position+Vector3.new(randBetween(-120,120),CONFIG.Effects.MeteorHeight,randBetween(-120,120)); p.Parent=workspace
-        local bv=Instance.new("BodyVelocity",p); bv.MaxForce=Vector3.new(1e5,1e5,1e5); bv.Velocity=Vector3.new(randBetween(-40,40),randBetween(-120,-80),randBetween(-40,40))
-        Debris:AddItem(bv,0.5)
-        local trail=Instance.new("Trail",p); trail.Attachment0=Instance.new("Attachment",p); trail.Attachment1=Instance.new("Attachment",p); trail.Lifetime=0.25; trail.Transparency=NumberSequence.new(0,1)
-        p.Touched:Connect(function() spawnExplosion(p.Position) end)
-        Debris:AddItem(p,10); safeWait(0.12)
+local function broadcastFlashbang()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local gui = plr:FindFirstChildOfClass("PlayerGui")
+        if gui then
+            local f = Instance.new("Frame")
+            f.BackgroundColor3 = Color3.new(1,1,1)
+            f.BorderSizePixel = 0
+            f.Size = UDim2.fromScale(1,1)
+            f.BackgroundTransparency = 1
+            f.Parent = gui
+            TweenService:Create(f, TweenInfo.new(0.1), {BackgroundTransparency = 0}):Play()
+            Debris:AddItem(f, 3)
+        end
     end
-    cameraShake(3.2,1.4)
 end
 
-local function flashbang()
-    if Flashing then return end; Flashing=true
-    playOneShot(CONFIG.Sounds.Flashbang)
-    local flash=Instance.new("Frame"); flash.BackgroundColor3=Color3.new(1,1,1); flash.BorderSizePixel=0; flash.Size=UDim2.fromScale(1,1); flash.BackgroundTransparency=1; flash.Parent=ScreenGui
-    local tIn=TweenService:Create(flash,TweenInfo.new(0.1),{BackgroundTransparency=0}); local tHold=TweenService:Create(flash,TweenInfo.new(CONFIG.Effects.FlashbangDuration),{BackgroundTransparency=0})
-    local tOut=TweenService:Create(flash,TweenInfo.new(0.5),{BackgroundTransparency=1})
-    tIn:Play(); tIn.Completed:Wait(); tHold:Play(); tHold.Completed:Wait(); tOut:Play(); tOut.Completed:Wait(); flash:Destroy(); Flashing=false
-end
-
-local function chaosStep()
-    spamExplosions(); castLightning(); meteorShower(); cameraShake(3.5,1.5); flashbang()
-end
-
-local function startChaos()
-    if ChaosRunning then return end; ChaosRunning=true
-    local re=findRemote(); if re then pcall(function() re:FireServer({cmd="StartChaos"}) end) end
-    task.spawn(function() while ChaosRunning do chaosStep(); safeWait(1.2) end end)
-end
-
-local function stopChaos()
-    ChaosRunning=false
-    local re=findRemote(); if re then pcall(function() re:FireServer({cmd="StopChaos"}) end) end
-end
-
---========================
--- UI BUTTONS
---========================
-btnChaos.MouseButton1Click:Connect(function() if ChaosRunning then stopChaos() else startChaos() end end)
-btnShake.MouseButton1Click:Connect(function() cameraShake() end)
-btnExpl.MouseButton1Click:Connect(spamExplosions)
-btnLight.MouseButton1Click:Connect(castLightning)
-btnMeteor.MouseButton1Click:Connect(meteorShower)
-btnFlash.MouseButton1Click:Connect(flashbang)
-
-ToggleBtn.MouseButton1Click:Connect(function()
-    Frame.Visible=not Frame.Visible
+-- Recebe eventos do cliente
+re.OnServerEvent:Connect(function(player, data)
+    if typeof(data) ~= "table" then return end
+    if data.cmd == "Explosion" then
+        broadcastExplosion(data.pos)
+    elseif data.cmd == "Lightning" then
+        broadcastLightning(data.origin, data.target)
+    elseif data.cmd == "Flashbang" then
+        broadcastFlashbang()
+    end
 end)
-
---========================
--- KEYBINDS
---========================
-UIS.InputBegan:Connect(function(i,gpe)
-    if gpe then return end
-    if i.KeyCode==CONFIG.Keybinds.Chaos then if ChaosRunning then stopChaos() else startChaos() end
-    elseif i.KeyCode==CONFIG.Keybinds.Shake then cameraShake()
-    elseif i.KeyCode==CONFIG.Keybinds.Explosions then spamExplosions()
-    elseif i.KeyCode==CONFIG.Keybinds.Lightning then castLightning()
-    elseif i.KeyCode==CONFIG.Keybinds.Meteor then meteorShower()
-    elseif i.KeyCode==CONFIG.Keybinds.Flashbang then flashbang() end
-end)
-
-print("ChaosFX Client ready! Use UI or F5-F10 keys")
